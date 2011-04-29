@@ -2,48 +2,47 @@ require 'rubygems'
 require 'cgi'
 require 'json'
 
-# begin
-#   gem 'curb'
-#   require 'curb'
-# rescue LoadError
+begin
+  require 'curb'
+rescue LoadError
   require File.join(File.dirname(__FILE__), 'curbemu')
-# end
+end
 
 
-$RUBY_WEB_SEARCH_DEBUG = true
+$RUBY_WEB_SEARCH_DEBUG = false
 
 class RubyWebSearch
-  
+
   # http://code.google.com/apis/ajaxsearch/documentation/reference.html
   class Google
-    
+
     def self.search(options={})
       query = ::RubyWebSearch::Google::Query.new(options)
       query.execute
     end
-    
+
     def self.unthreaded_search(options={})
       query = ::RubyWebSearch::Google::Query.new(options)
       query.execute_unthreaded
     end
-    
+
     class Query
       attr_accessor :query, :start_index, :result_size, :filter, :country_code, :language_code
       attr_accessor :safe_search, :type, :custom_search_engine_id, :version, :referer, :request_url
       attr_accessor :size, :cursor, :custom_request_url, :response
-      
+
       class Error < StandardError;  end
-      
+
       SEARCH_BASE_URLS = {  :web    => "http://ajax.googleapis.com/ajax/services/search/web",
                             :local  => "http://ajax.googleapis.com/ajax/services/search/local",
                             :video  => "http://ajax.googleapis.com/ajax/services/search/video",
                             :blog   => "http://ajax.googleapis.com/ajax/services/search/blogs",
-                            :news   =>  "http://ajax.googleapis.com/ajax/services/search/news",
+                            :news   => "http://ajax.googleapis.com/ajax/services/search/news",
                             :book   => "http://ajax.googleapis.com/ajax/services/search/books",
                             :image  => "http://ajax.googleapis.com/ajax/services/search/images",
                             :patent => "http://ajax.googleapis.com/ajax/services/search/patent"
                           }
-      
+
       #
       # You can overwrite the query building process by passing the request url to use.
       #
@@ -82,9 +81,9 @@ class RubyWebSearch
         end
         @response ||= Response.new(:query => (query || custom_request_url), :size => size)
       end
-      
+
       def build_request
-        if custom_request_url 
+        if custom_request_url
           custom_request_url
         else
           @request_url = "#{SEARCH_BASE_URLS[type]}?v=#{version}&q=#{CGI.escape(query)}"
@@ -97,9 +96,9 @@ class RubyWebSearch
           request_url
         end
       end
-      
+
       def build_requests
-        if custom_request_url 
+        if custom_request_url
           requests = [custom_request_url]
         else
           requests = []
@@ -114,12 +113,12 @@ class RubyWebSearch
             @cursor += 8
             requests << url
           end
-          
+
           puts requests.inspect if $RUBY_WEB_SEARCH_DEBUG
           requests
         end
       end
-      
+
       # Makes the request to Google
       # if a larger set was requested than what is returned,
       # more requests are made until the correct amount is available
@@ -127,8 +126,8 @@ class RubyWebSearch
         @curl_request ||= ::Curl::Easy.new(){ |curl| curl.headers["Referer"] = referer }
         @curl_request.url = build_request
         @curl_request.perform
-        results = JSON.load(@curl_request.body_str) 
-        
+        results = JSON.load(@curl_request.body_str)
+
         response.process(results)
         @cursor = response.results.size - 1
         if ((cursor + 1) < size && custom_request_url.nil?)
@@ -138,7 +137,7 @@ class RubyWebSearch
           response.limit(size)
         end
       end
-      
+
       # Makes the request to Google
       # if a larger set was requested than what is returned,
       # more requests are made until the correct amount is available
@@ -155,16 +154,16 @@ class RubyWebSearch
         end
         response.limit(size)
       end
-      
+
     end #of Query
-    
-    
+
+
     class Response
       attr_reader :results, :status, :query, :size, :estimated_result_count
       def initialize(google_raw_response={})
         process(google_raw_response) unless google_raw_response.empty?
       end
-        
+
       def process(google_raw_response={})
         @query    ||= google_raw_response[:query]
         @size     ||= google_raw_response[:size]
@@ -172,9 +171,9 @@ class RubyWebSearch
         @status     = google_raw_response["responseStatus"]
         if google_raw_response["responseData"] && status && status == 200
           estimated_result_count ||= google_raw_response["cursor"]["estimatedResultCount"] if google_raw_response["cursor"]
-          @results  +=  google_raw_response["responseData"]["results"].map do |r| 
-                        { 
-                          :title      => r["titleNoFormatting"], 
+          @results  +=  google_raw_response["responseData"]["results"].map do |r|
+                        {
+                          :title      => r["titleNoFormatting"],
                           :url        => r["unescapedUrl"],
                           :cache_url  => r["cacheUrl"],
                           :content    => r["content"],
@@ -182,15 +181,15 @@ class RubyWebSearch
                         }
                       end
         end
-        
+
         def limit(req_size)
           @results = @results[0...req_size]
           self
         end
-        
+
       end
     end #of Response
-    
+
   end #of Google
 
   # http://developer.yahoo.com/search/boss/
@@ -512,7 +511,7 @@ class RubyWebSearch
         @size     ||= google_raw_response[:size]
         @results  ||= []
         @status     = 200
-        if google_raw_response["SearchResponse"] && 
+        if google_raw_response["SearchResponse"] &&
                 google_raw_response["SearchResponse"]["Web"] &&
                 google_raw_response["SearchResponse"]["Web"]["Results"] &&
                 status && status == 200
@@ -537,5 +536,5 @@ class RubyWebSearch
     end #of Response
 
   end #of Bing
-  
+
 end
